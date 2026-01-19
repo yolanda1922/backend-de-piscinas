@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Usuario = require("../models/Usuario");
+const Carrito = require("../models/carrito");
 
 // Registrar usuario
 const registrarUsuario = async (req, res) => {
@@ -172,7 +173,8 @@ const actualizarUsuario = async (req, res) => {
     // Si se proporciona una nueva contraseña, encriptarla
     if (password) {
       const saltRounds = 10;
-      updateData.password = await bcrypt.hash(password, saltRounds);
+      const hashedPasswordUpdate = await bcrypt.hash(password, saltRounds);
+      updateData.password = hashedPasswordUpdate;
     }
     
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
@@ -217,6 +219,207 @@ const eliminarUsuario = async (req, res) => {
   }
 };
 
+// ===== FUNCIONES DEL CARRITO =====
+
+// Crear carrito para un usuario
+const crearCarrito = async (req, res) => {
+  try {
+    const { usuarioId } = req.body;
+    
+    // Verificar si el usuario existe
+    const usuario = await Usuario.findById(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+    
+    // Verificar si el usuario ya tiene un carrito
+    const carritoExistente = await Carrito.findOne({ usuarioId });
+    if (carritoExistente) {
+      return res.status(400).json({ message: "El usuario ya tiene un carrito" });
+    }
+    
+    const nuevoCarrito = new Carrito({
+      usuarioId,
+      productos: []
+    });
+    
+    await nuevoCarrito.save();
+    
+    return res.status(201).json({
+      message: "Carrito creado exitosamente",
+      carrito: nuevoCarrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al crear el carrito",
+      error: error.message
+    });
+  }
+};
+
+// Obtener carrito de un usuario
+const obtenerCarrito = async (req, res) => {
+  try {
+    const { usuarioId } = req.params;
+    
+    const carrito = await Carrito.findOne({ usuarioId }).populate('usuarioId', 'nombre email');
+    if (!carrito) {
+      return res.status(404).json({ message: "Carrito no encontrado" });
+    }
+    
+    return res.status(200).json({
+      message: "Carrito obtenido exitosamente",
+      carrito: carrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al obtener el carrito",
+      error: error.message
+    });
+  }
+};
+
+// Agregar producto al carrito
+const agregarProductoCarrito = async (req, res) => {
+  try {
+    const { usuarioId } = req.params;
+    const { nombreProducto, precioProducto, cantidad, Imagen, slug } = req.body;
+    
+    // Validar campos requeridos
+    if (!nombreProducto || !precioProducto || !cantidad) {
+      return res.status(400).json({
+        message: "Nombre del producto, precio y cantidad son obligatorios"
+      });
+    }
+    
+    let carrito = await Carrito.findOne({ usuarioId });
+    
+    // Si no existe carrito, crearlo
+    if (!carrito) {
+      carrito = new Carrito({
+        usuarioId,
+        productos: []
+      });
+    }
+    
+    // Verificar si el producto ya existe en el carrito
+    const productoExistente = carrito.productos.find(p => p.slug === slug);
+    
+    if (productoExistente) {
+      // Si existe, aumentar la cantidad
+      productoExistente.cantidad += parseInt(cantidad);
+    } else {
+      // Si no existe, agregar nuevo producto
+      carrito.productos.push({
+        nombreProducto,
+        precioProducto: parseFloat(precioProducto),
+        cantidad: parseInt(cantidad),
+        Imagen,
+        slug
+      });
+    }
+    
+    await carrito.save();
+    
+    return res.status(200).json({
+      message: "Producto agregado al carrito exitosamente",
+      carrito: carrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al agregar producto al carrito",
+      error: error.message
+    });
+  }
+};
+
+// Actualizar cantidad de producto en carrito
+const actualizarProductoCarrito = async (req, res) => {
+  try {
+    const { usuarioId, productoId } = req.params;
+    const { cantidad } = req.body;
+    
+    if (!cantidad || cantidad <= 0) {
+      return res.status(400).json({
+        message: "La cantidad debe ser mayor a 0"
+      });
+    }
+    
+    const carrito = await Carrito.findOne({ usuarioId });
+    if (!carrito) {
+      return res.status(404).json({ message: "Carrito no encontrado" });
+    }
+    
+    const producto = carrito.productos.id(productoId);
+    if (!producto) {
+      return res.status(404).json({ message: "Producto no encontrado en el carrito" });
+    }
+    
+    producto.cantidad = parseInt(cantidad);
+    await carrito.save();
+    
+    return res.status(200).json({
+      message: "Cantidad actualizada exitosamente",
+      carrito: carrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al actualizar producto en carrito",
+      error: error.message
+    });
+  }
+};
+
+// Eliminar producto del carrito
+const eliminarProductoCarrito = async (req, res) => {
+  try {
+    const { usuarioId, productoId } = req.params;
+    
+    const carrito = await Carrito.findOne({ usuarioId });
+    if (!carrito) {
+      return res.status(404).json({ message: "Carrito no encontrado" });
+    }
+    
+    carrito.productos.id(productoId).deleteOne();
+    await carrito.save();
+    
+    return res.status(200).json({
+      message: "Producto eliminado del carrito exitosamente",
+      carrito: carrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al eliminar producto del carrito",
+      error: error.message
+    });
+  }
+};
+
+// Vaciar carrito
+const vaciarCarrito = async (req, res) => {
+  try {
+    const { usuarioId } = req.params;
+    
+    const carrito = await Carrito.findOne({ usuarioId });
+    if (!carrito) {
+      return res.status(404).json({ message: "Carrito no encontrado" });
+    }
+    
+    carrito.productos = [];
+    await carrito.save();
+    
+    return res.status(200).json({
+      message: "Carrito vaciado exitosamente",
+      carrito: carrito
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error al vaciar el carrito",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registrarUsuario,
   loginUsuario,
@@ -224,5 +427,11 @@ module.exports = {
   obtenerUsuarios,
   obtenerUsuarioPorId,
   actualizarUsuario,
-  eliminarUsuario
+  eliminarUsuario,
+  crearCarrito,
+  obtenerCarrito,
+  agregarProductoCarrito,
+  actualizarProductoCarrito,
+  eliminarProductoCarrito,
+  vaciarCarrito
 };
