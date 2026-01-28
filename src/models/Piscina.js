@@ -4,11 +4,24 @@ const mongoose = require("mongoose");
 // 2. schema
 const piscinaSchema = mongoose.Schema(
   {
+    idpiscina: {
+      type: String,
+      required: true,
+    },
+    PriceID: {  
+      type: String,
+      required: true
+    },
+    currency: {
+      type: String,
+      required: true
+    },
     nombre: {
       type: String,
       required: true,
     },
-    descripcion: {
+
+      descripcion: {
       type: String,
       required: true,
     },
@@ -19,6 +32,15 @@ const piscinaSchema = mongoose.Schema(
     precio: {
       type: Number,
       required: true,
+    },
+    img: {
+      type: String,
+      required: true,
+    },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
     },
   },
   {
