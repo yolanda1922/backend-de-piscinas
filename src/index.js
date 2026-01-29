@@ -16,8 +16,8 @@ app.use(cors()); // Habilitar CORS
 app.use(express.json()); // Middleware para parsear JSON
 
 // Rutas
-app.use("/piscinas", piscinasRoutes);
-app.use("/usuarios", usuariosRoutes);
+app.use("/api/piscinas", piscinasRoutes);
+app.use("/api/usuarios", usuariosRoutes);
 
 // Ruta de prueba
 app.get("/", (req, res) => {
